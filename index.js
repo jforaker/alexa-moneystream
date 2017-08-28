@@ -1,5 +1,5 @@
 'use strict';
-require("request");
+require('request');
 const Alexa = require('alexa-sdk');
 const rp = require('request-promise');
 
@@ -7,7 +7,7 @@ const APP_ID = process.env.APP_ID;
 
 const SKILL_NAME = `MoneyStream`;
 const GET_LATEST_MESSAGE = `Here's the latest from MoneyStream: `;
-const HELP_MESSAGE = `You can say get latest, or, you can say exit... What can I help you with?`;
+const HELP_MESSAGE = `You can say get latest or get my news, or you can say exit.`;
 const HELP_REPROMPT = `What can I help you with?`;
 const STOP_MESSAGE = `Goodbye!`;
 
@@ -18,18 +18,18 @@ const options = {
 
 const articleOnly = (c) => c.baselink && c.card_type === 'article';
 const headlines = (c) => c.baselink.headline;
+const commaSeparated = (prev, curr) => prev + ', <break time="0.7s"/> ' + curr;
 
 function run() {
   return rp(options)
-    .then(function (response) {
-      if (response.cards && response.cards.length) {
-        return response.cards
-          .filter(articleOnly)
-          .map(headlines)
-          .slice(0, 5) // return top 5 article headlines
-      }
+    .then(response => {
+      return response.cards
+        .filter(articleOnly)
+        .map(headlines)
+        .slice(0, 5) // return top 5 article headlines
+        .reduce(commaSeparated)
     })
-    .catch(function (err) {
+    .catch(err => {
       console.warn('error fetching', err);
       return err;
     });
@@ -38,22 +38,14 @@ function run() {
 //=========================================================================================================================================
 //Editing anything below this line might break your skill.
 //=========================================================================================================================================
-exports.handler = function (event, context, callback) {
-  const alexa = Alexa.handler(event, context);
-  alexa.APP_ID = APP_ID;
-  alexa.registerHandlers(handlers);
-  alexa.execute();
-};
-
 const handlers = {
   'LaunchRequest': function () {
     this.emit('GetHeadlinesIntent');
   },
   'GetHeadlinesIntent': function () {
-    run().then(res => {
-      const five = res.join('. <break time="0.7s"/> ');
-      const speechOutput = GET_LATEST_MESSAGE + five;
-      return this.emit(':tellWithCard', speechOutput, SKILL_NAME, five)
+    run().then(response => {
+      const speechOutput = GET_LATEST_MESSAGE + response;
+      return this.emit(':tellWithCard', speechOutput, SKILL_NAME)
     }).catch(e => {
       if (e) this.emit(':tell', `oops! ${e}`);
     })
@@ -67,4 +59,11 @@ const handlers = {
   'AMAZON.StopIntent': function () {
     this.emit(':tell', STOP_MESSAGE);
   }
+};
+
+exports.handler = function (event, context, callback) {
+  const alexa = Alexa.handler(event, context);
+  alexa.APP_ID = APP_ID;
+  alexa.registerHandlers(handlers);
+  alexa.execute();
 };
